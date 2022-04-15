@@ -2,11 +2,12 @@
 # -*- coding: utf-8 -*-
 
 from audioop import reverse
-from turtle import goto
 import numpy as np
 import cv2, random, math, copy
+
 import pandas as pd
 line_temp = [[],[]]
+
 Width = 640
 Height = 480
 #버드아이 뷰를 이용하면 차선이 보이지 않음
@@ -27,10 +28,10 @@ minpix = 5
 lane_bin_th = 2
 
 warp_src  = np.array([
-    [230-warpx_margin, 300-warpy_margin],  
-    [45-warpx_margin,  450+warpy_margin],
-    [445+warpx_margin, 300-warpy_margin],
-    [610+warpx_margin, 450+warpy_margin]
+    [170,300],  
+    [0,405],
+    [470,300],
+    [640,405]
 ], dtype=np.float32)
 
 warp_dist = np.array([
@@ -66,6 +67,8 @@ def warp_image(img, src, dst, size):
     M = cv2.getPerspectiveTransform(src, dst)
     Minv = cv2.getPerspectiveTransform(dst, src)
     warp_img = cv2.warpPerspective(img, M, size, flags=cv2.INTER_LINEAR)
+    print(Minv)
+
     return warp_img, M, Minv
 pre_rightx_current = 320
 pre_leftx_current = 0
@@ -90,9 +93,11 @@ def warp_process_image(img):
     #HLS는 흰색선을 쉽게 구분한다 그럼 HSV를 써야하나
     #_, L, _ = cv2.split(cv2.cvtColor(blur, cv2.COLOR_BGR2HLS))
 
-    cv2.circle(blur_gray, (155, 250),60, 255, -1)
-    cv2.circle(blur_gray, (10, 250),40, 255, -1)
-    cv2.circle(blur_gray, (315, 250),50, 255, -1)
+    cv2.circle(blur_gray, (155, 290),57, 255, -1)
+    # cv2.circle(blur_gray, (10, 250),40, 255, -1)
+    # cv2.circle(blur_gray, (315, 250),50, 255, -1)
+
+    
 
     _, reverse = cv2.threshold(blur_gray, lane_bin_th, 255, cv2.THRESH_BINARY)
     lane = 255 - reverse
@@ -101,13 +106,15 @@ def warp_process_image(img):
     histogram = np.sum(lane[180:220,:], axis=0)      
     #x측(x좌표)을 반으로 나누어 왼쪽 차선과 오른쪽 차선을 구분한다.
     #y축이 가장 높은값 두개?? 
-    midpoint = np.int(histogram.shape[0]/2)
 
-
+    
+    #midpoint = np.int(histogram.shape[0]/2)
+    midpoint = int((pre_rightx_current+pre_leftx_current)/2)
+    print("midpoint : " , midpoint)
     print(max(histogram[:midpoint]), "  ///  ",max(histogram[midpoint:]))
 
     hist_threshold = 2200
-    
+
     if max(histogram[:midpoint]) < hist_threshold:
         leftx_current = 0 
     else:
@@ -118,17 +125,26 @@ def warp_process_image(img):
     else:
         rightx_current = np.argmax(histogram[midpoint:]) + midpoint
 
-    if rightx_current < 165 and leftx_current > 140: #예외처리 가운데서 차선이 둘다 인식될 때
+    # if leftx_current > 140 and rightx_current < 170: #예외처리 가운데서 차선이 둘다 인식될 때
 
-        a = rightx_current - pre_rightx_current
-        b = leftx_current - pre_leftx_current
+    #     a = abs(rightx_current - pre_rightx_current)
+    #     b = abs(leftx_current - pre_leftx_current)
 
-        if a > b:
-            rightx_current = 320
-        elif b > a:
-            leftx_current = 0  
+    #     if b < a:
+    #         rightx_current = 320
+    #     elif a < b:
+    #         leftx_current = 0
+            
+    # if  rightx_current < 170:
+    #     c = abs(rightx_current - pre_rightx_current)
+    #     print(c)
+    #     if c > 50:
+    #         rightx_current = 0
+
+
     print("leftx_current : " ,leftx_current,"rightx_current :",rightx_current)
     print("pre_leftx_current : ", pre_leftx_current, "pre_rightx_current : " ,pre_rightx_current)
+
     pre_rightx_current = rightx_current
     pre_leftx_current = leftx_current
 
@@ -152,6 +168,7 @@ def warp_process_image(img):
 
         win_yl = lane.shape[0] - (window+1)*window_height
         win_yh = lane.shape[0] - window*window_height
+
         win_xll = leftx_current - margin
         win_xlh = leftx_current + margin
         win_xrl = rightx_current - margin
@@ -177,7 +194,6 @@ def warp_process_image(img):
         rx.append(rightx_current)
         ry.append((win_yl + win_yh)/2)
 
-
     left_lane_inds = np.concatenate(left_lane_inds)
     right_lane_inds = np.concatenate(right_lane_inds)
 
@@ -189,11 +205,12 @@ def warp_process_image(img):
 
     img[nz[0][left_lane_inds], nz[1][left_lane_inds]] = [255, 0, 0]
     img[nz[0][right_lane_inds] , nz[1][right_lane_inds]] = [0, 0, 255]
-    lpos = lx[4]
-    rpos = rx[4]
+    lpos = lx[0]
+    rpos = rx[0]
     line_temp[0].append(lpos)
     line_temp[1].append(rpos)
     cv2.imshow("cam", img)
+    cv2.imshow("cam1", blur_gray)
     #return left_fit, right_fit
     return lfit, rfit
 
@@ -241,10 +258,14 @@ def start():
         warp_img, M, Minv = warp_image(image, warp_src, warp_dist, (warp_img_w, warp_img_h))
         left_fit, right_fit = warp_process_image(warp_img)
         lane_img = draw_lane(image, warp_img, Minv, left_fit, right_fit)
+        cv2.circle(lane_img, (170,300),5, (0,0,255), -1)
+        cv2.circle(lane_img, (0,420),5, (0,255,0), -1)
+        cv2.circle(lane_img, (470,300),5, (255,0,0), -1)
+        cv2.circle(lane_img, (640,420),5, (0,255,255), -1)
         cv2.imshow(window_title, lane_img)
         #cv2.waitKey(1)
         if cv2.waitKey(0) != 33:
-             pass
+               pass
 
 if __name__ == '__main__':
     start()
