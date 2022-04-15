@@ -86,13 +86,6 @@ def warp_process_image(img):
 
     lane = 255-lane # 영상 반전
 
-    # hist = cv2.calcHist([lane], [0], None, [256], [0, 256])
-    # hist = np.zeros((240,320))
-    # for x, y in enumerate(histogram):
-    #     cv2.line(hist, (x, hist.shape[0]), (x, hist.shape[0] - y), 255)
-    # dst = np.hstack([lane, hist])
-    # cv2.imshow("hist",dst)
-
     histogram = np.sum(lane[180:220,:], axis=0) 
 
     midpoint = np.int(histogram.shape[0]/2)
