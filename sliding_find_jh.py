@@ -11,7 +11,7 @@ line_temp = [[],[]]
 Width = 640
 Height = 480
 #버드아이 뷰를 이용하면 차선이 보이지 않음
-cap = cv2.VideoCapture("subProject.avi")
+cap = cv2.VideoCapture("../subProject.avi")
 #cap = cv2.VideoCapture("xycar_track1.mp4")
 window_title = 'camera'
 
@@ -22,16 +22,16 @@ warpx_margin = 45
 warpy_margin = 3
 
 nwindows = 20
-margin = 50
+margin = 25
 minpix = 5
 
-lane_bin_th = 2
+lane_bin_th = 5
 
 warp_src  = np.array([
-    [170,300],  
-    [0,405],
-    [470,300],
-    [640,405]
+    [100,340],  
+    [0,413],
+    [540,340],
+    [640,413]
 ], dtype=np.float32)
 
 warp_dist = np.array([
@@ -67,11 +67,15 @@ def warp_image(img, src, dst, size):
     M = cv2.getPerspectiveTransform(src, dst)
     Minv = cv2.getPerspectiveTransform(dst, src)
     warp_img = cv2.warpPerspective(img, M, size, flags=cv2.INTER_LINEAR)
-    print(Minv)
-
     return warp_img, M, Minv
+
 pre_rightx_current = 320
 pre_leftx_current = 0
+pre_rightx_current = 320
+pre_leftx_current = 0
+midpoint = 320
+
+
 def warp_process_image(img):
     global nwindows
     global margin
@@ -80,40 +84,39 @@ def warp_process_image(img):
     global line_temp
     global pre_rightx_current
     global pre_leftx_current
+    global rightx_current
+    global leftx_current
+    global midpoint
 
     gray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
 
     m = cv2.mean(gray)[0]
 
-    dst = cv2.add(gray ,(20 - m))
+    dst = cv2.add(gray ,(40 - m))
 
-    blur_gray = cv2.GaussianBlur(dst,(5, 5), 0)
+    blur_gray = cv2.GaussianBlur(dst,(5, 5), 3)
 
     #blur = cv2.GaussianBlur(img,(5, 5), 0)
     #HLS는 흰색선을 쉽게 구분한다 그럼 HSV를 써야하나
     #_, L, _ = cv2.split(cv2.cvtColor(blur, cv2.COLOR_BGR2HLS))
 
-    cv2.circle(blur_gray, (155, 290),57, 255, -1)
+    cv2.circle(blur_gray, (158, 265),60, 255, -1) # Lidar 가리기
     # cv2.circle(blur_gray, (10, 250),40, 255, -1)
     # cv2.circle(blur_gray, (315, 250),50, 255, -1)
-
     
 
     _, reverse = cv2.threshold(blur_gray, lane_bin_th, 255, cv2.THRESH_BINARY)
     lane = 255 - reverse
 
 
-    histogram = np.sum(lane[180:220,:], axis=0)      
-    #x측(x좌표)을 반으로 나누어 왼쪽 차선과 오른쪽 차선을 구분한다.
-    #y축이 가장 높은값 두개?? 
-
+    histogram = np.sum(lane[195:205,:], axis=0)     
     
     #midpoint = np.int(histogram.shape[0]/2)
     midpoint = int((pre_rightx_current+pre_leftx_current)/2)
     print("midpoint : " , midpoint)
     print(max(histogram[:midpoint]), "  ///  ",max(histogram[midpoint:]))
 
-    hist_threshold = 2200
+    hist_threshold = 500
 
     if max(histogram[:midpoint]) < hist_threshold:
         leftx_current = 0 
@@ -125,34 +128,12 @@ def warp_process_image(img):
     else:
         rightx_current = np.argmax(histogram[midpoint:]) + midpoint
 
-    # if leftx_current > 140 and rightx_current < 170: #예외처리 가운데서 차선이 둘다 인식될 때
-
-    #     a = abs(rightx_current - pre_rightx_current)
-    #     b = abs(leftx_current - pre_leftx_current)
-
-    #     if b < a:
-    #         rightx_current = 320
-    #     elif a < b:
-    #         leftx_current = 0
-            
-    # if  rightx_current < 170:
-    #     c = abs(rightx_current - pre_rightx_current)
-    #     print(c)
-    #     if c > 50:
-    #         rightx_current = 0
-
-
     print("leftx_current : " ,leftx_current,"rightx_current :",rightx_current)
     print("pre_leftx_current : ", pre_leftx_current, "pre_rightx_current : " ,pre_rightx_current)
+    
 
     pre_rightx_current = rightx_current
     pre_leftx_current = leftx_current
-
-    # elif leftx_current > 135:
-    #     leftx_current = pre_leftx_current
-    # elif rightx_current < 175:
-    #     rightx_current = pre_rightx_current
-    
 
     window_height = np.int(lane.shape[0]/nwindows)
     nz = lane.nonzero()
@@ -205,13 +186,16 @@ def warp_process_image(img):
 
     img[nz[0][left_lane_inds], nz[1][left_lane_inds]] = [255, 0, 0]
     img[nz[0][right_lane_inds] , nz[1][right_lane_inds]] = [0, 0, 255]
-    lpos = lx[0]
-    rpos = rx[0]
-    line_temp[0].append(lpos)
-    line_temp[1].append(rpos)
+    # lpos = lx[2]
+    # rpos = rx[2]
+    if count % 30 == 0:
+        line_temp[0].append(leftx_current * 2)  # 차선 왼쪽 좌표
+        line_temp[1].append(rightx_current * 2) # 차선 오른쪽 좌표
+
     cv2.imshow("cam", img)
-    cv2.imshow("cam1", blur_gray)
-    #return left_fit, right_fit
+    cv2.imshow("blur_gray", blur_gray)
+    cv2.imshow("reverse", reverse)
+
     return lfit, rfit
 
 def draw_lane(image, warp_img, Minv, left_fit, right_fit):
@@ -232,8 +216,9 @@ def draw_lane(image, warp_img, Minv, left_fit, right_fit):
 
     return cv2.addWeighted(image, 1, newwarp, 0.3, 0)
 
+count = 0
 def start():
-    global Width, Height, cap
+    global Width, Height, cap, count
 
     _, frame = cap.read()
     while not frame.size == (Width*Height*3):
@@ -243,6 +228,7 @@ def start():
     print("start")
 
     while cap.isOpened():
+        count += 1
         
         _, frame = cap.read()
         if frame is None:
@@ -250,22 +236,29 @@ def start():
             # close the video file pointers
             line=pd.DataFrame(line_temp)
             line=line.transpose()
-            line.to_csv('~/xycar_ws/src/sliding_drive/line.csv',header=False, index=False)
+            line.to_csv('../line.csv',header=False, index=False)
             cap.release()
+            break
 
         #image = calibrate_image(frame)
         image = frame
         warp_img, M, Minv = warp_image(image, warp_src, warp_dist, (warp_img_w, warp_img_h))
         left_fit, right_fit = warp_process_image(warp_img)
         lane_img = draw_lane(image, warp_img, Minv, left_fit, right_fit)
-        cv2.circle(lane_img, (170,300),5, (0,0,255), -1)
-        cv2.circle(lane_img, (0,420),5, (0,255,0), -1)
-        cv2.circle(lane_img, (470,300),5, (255,0,0), -1)
-        cv2.circle(lane_img, (640,420),5, (0,255,255), -1)
+        cv2.circle(lane_img, (100,340),5, (0,0,255), -1)
+        cv2.circle(lane_img, (0,413),5, (0,255,0), -1)
+        cv2.circle(lane_img, (540,340),5, (255,0,0), -1)
+        cv2.circle(lane_img, (640,413),5, (0,255,255), -1)
+
+        cv2.circle(lane_img, (pre_leftx_current*2, 400),5, (255,0,255), -1)
+        cv2.circle(lane_img, (pre_rightx_current*2, 400),5, (255,0,255), -1)
+
+        cv2.line(lane_img, (midpoint*2,0), (midpoint*2, 480), (255,255,255),2)
+        
         cv2.imshow(window_title, lane_img)
-        #cv2.waitKey(1)
-        if cv2.waitKey(0) != 33:
-               pass
+        cv2.waitKey(1)
+        # if cv2.waitKey(0) != 33:
+        #        pass
 
 if __name__ == '__main__':
     start()
