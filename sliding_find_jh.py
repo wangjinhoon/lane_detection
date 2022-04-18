@@ -10,9 +10,8 @@ line_temp = [[],[]]
 
 Width = 640
 Height = 480
-#버드아이 뷰를 이용하면 차선이 보이지 않음
+
 cap = cv2.VideoCapture("../subProject.avi")
-#cap = cv2.VideoCapture("xycar_track1.mp4")
 window_title = 'camera'
 
 warp_img_w = 320
@@ -62,7 +61,7 @@ def calibrate_image(frame):
 
     return cv2.resize(tf_image, (Width, Height))
 
-#warp img 가 너무 작음
+
 def warp_image(img, src, dst, size):
     M = cv2.getPerspectiveTransform(src, dst)
     Minv = cv2.getPerspectiveTransform(dst, src)
@@ -96,13 +95,9 @@ def warp_process_image(img):
 
     blur_gray = cv2.GaussianBlur(dst,(5, 5), 3)
 
-    #blur = cv2.GaussianBlur(img,(5, 5), 0)
-    #HLS는 흰색선을 쉽게 구분한다 그럼 HSV를 써야하나
-    #_, L, _ = cv2.split(cv2.cvtColor(blur, cv2.COLOR_BGR2HLS))
 
-    cv2.circle(blur_gray, (158, 265),60, 255, -1) # Lidar 가리기
-    # cv2.circle(blur_gray, (10, 250),40, 255, -1)
-    # cv2.circle(blur_gray, (315, 250),50, 255, -1)
+    cv2.circle(blur_gray, (158, 265),60, 255, -1) 
+   
     
 
     _, reverse = cv2.threshold(blur_gray, lane_bin_th, 255, cv2.THRESH_BINARY)
@@ -111,10 +106,8 @@ def warp_process_image(img):
 
     histogram = np.sum(lane[195:205,:], axis=0)     
     
-    #midpoint = np.int(histogram.shape[0]/2)
     midpoint = int((pre_rightx_current+pre_leftx_current)/2)
-    print("midpoint : " , midpoint)
-    print(max(histogram[:midpoint]), "  ///  ",max(histogram[midpoint:]))
+
 
     hist_threshold = 500
 
@@ -128,8 +121,6 @@ def warp_process_image(img):
     else:
         rightx_current = np.argmax(histogram[midpoint:]) + midpoint
 
-    print("leftx_current : " ,leftx_current,"rightx_current :",rightx_current)
-    print("pre_leftx_current : ", pre_leftx_current, "pre_rightx_current : " ,pre_rightx_current)
     
 
     pre_rightx_current = rightx_current
@@ -143,7 +134,6 @@ def warp_process_image(img):
     
     lx, ly, rx, ry = [], [], [], []
 
-    #out_img = np.dstack((lane, lane, lane))*255
 
     for window in range(nwindows):
 
@@ -178,19 +168,17 @@ def warp_process_image(img):
     left_lane_inds = np.concatenate(left_lane_inds)
     right_lane_inds = np.concatenate(right_lane_inds)
 
-    #left_fit = np.polyfit(nz[0][left_lane_inds], nz[1][left_lane_inds], 2)
-    #right_fit = np.polyfit(nz[0][right_lane_inds] , nz[1][right_lane_inds], 2)
+
     
     lfit = np.polyfit(np.array(ly),np.array(lx),2)
     rfit = np.polyfit(np.array(ry),np.array(rx),2)
 
     img[nz[0][left_lane_inds], nz[1][left_lane_inds]] = [255, 0, 0]
     img[nz[0][right_lane_inds] , nz[1][right_lane_inds]] = [0, 0, 255]
-    # lpos = lx[2]
-    # rpos = rx[2]
+
     if count % 30 == 0:
-        line_temp[0].append(leftx_current * 2)  # 차선 왼쪽 좌표
-        line_temp[1].append(rightx_current * 2) # 차선 오른쪽 좌표
+        line_temp[0].append(leftx_current * 2)  
+        line_temp[1].append(rightx_current * 2) 
 
     cv2.imshow("cam", img)
     cv2.imshow("blur_gray", blur_gray)
@@ -240,7 +228,7 @@ def start():
             cap.release()
             break
 
-        #image = calibrate_image(frame)
+
         image = frame
         warp_img, M, Minv = warp_image(image, warp_src, warp_dist, (warp_img_w, warp_img_h))
         left_fit, right_fit = warp_process_image(warp_img)
@@ -257,8 +245,7 @@ def start():
         
         cv2.imshow(window_title, lane_img)
         cv2.waitKey(1)
-        # if cv2.waitKey(0) != 33:
-        #        pass
+
 
 if __name__ == '__main__':
     start()
